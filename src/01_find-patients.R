@@ -2,6 +2,7 @@ library(tidyverse)
 library(edwr)
 library(lubridate)
 library(stringr)
+library(icd)
 
 dir_raw <- "data/raw"
 
@@ -17,6 +18,7 @@ mbo_id <- concat_encounters(pts$millennium.id)
 
 # run MBO queries
 #   * Demographics
+#   * Diagnosis - ICD-9/10-CM
 #   * Location History
 #   * Medications - Inpatient - All
 #   * Pain Scores
@@ -30,16 +32,28 @@ set.seed(77123)
 demog <- read_data(dir_raw, "demographics", FALSE) %>%
     as.demographics() %>%
     filter(age >= 18) %>%
-    sample_n(100)
+    sample_n(110)
 
-locations <- read_data(dir_raw, "location", FALSE) %>%
-    as.locations() %>%
-    filter(unit.name %in% units) %>%
-    semi_join(demog, by = "millennium.id")
+id <- read_data(dir_raw, "identifiers") %>%
+    as.id()
+
+icd <- read_data(dir_raw, "diagnosis", FALSE) %>%
+    as.diagnosis()
+
+primary <- icd %>%
+    filter(diag.type == "FINAL",
+           diag.seq == "Primary") %>%
+    mutate_at("diag.code", as.icd10) %>%
+    mutate("icd" = icd_decimal_to_short(diag.code),
+           desc = icd_explain_table(icd)$short_desc)
+
+# locations <- read_data(dir_raw, "location", FALSE) %>%
+#     as.locations() %>%
+#     filter(unit.name %in% units) %>%
+#     semi_join(demog, by = "millennium.id")
 
 scores <- read_data(dir_raw, "^pain-scores", FALSE) %>%
     as.pain_scores() %>%
-    semi_join(demog, by = "millennium.id") %>%
     filter(event.location %in% units)
 
 pain_meds <- med_lookup("analgesics") %>%
@@ -67,5 +81,20 @@ details <- read_data(dir_raw, "orders", FALSE) %>%
            freq = Frequency,
            prn = `PRN Indicator`)
 
+set.seed(77123)
+data_patients <- demog %>%
+    left_join(primary, by = "millennium.id") %>%
+    left_join(id, by = "millennium.id") %>%
+    filter(!is.na(diag.code),
+           !is.na(fin)) %>%
+    sample_n(100) %>%
+    select(millennium.id, fin, age, gender, diag.code, desc)
+
 data_meds <- orders %>%
-    left_join(details, by = c("millennium.id", "order_id"))
+    left_join(details, by = c("millennium.id", "order_id")) %>%
+    semi_join(data_patients, by = "millennium.id") %>%
+    select(millennium.id, med.datetime:route, freq, prn, event.tag)
+
+data_scores <- scores %>%
+    semi_join(data_patients, by = "millennium.id") %>%
+    select(millennium.id:event.result)
