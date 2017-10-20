@@ -98,3 +98,7 @@ data_meds <- orders %>%
 data_scores <- scores %>%
     semi_join(data_patients, by = "millennium.id") %>%
     select(millennium.id:event.result)
+
+write_csv(data_patients, "data/external/patients.csv")
+write_csv(data_meds, "data/external/meds.csv")
+write_csv(data_scores, "data/external/scores.csv")
