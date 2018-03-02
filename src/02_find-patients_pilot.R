@@ -25,12 +25,10 @@ mbo_id <- concat_encounters(pts$millennium.id)
 # run MBO queries
 #   * Demographics
 #   * Diagnosis - ICD-9/10-CM
+#   * Identifiers - by Millennium Encounter ID
 #   * Location History
 #   * Medications - Inpatient - All
 #   * Pain Scores
-
-# run EDW query
-#   * Identifiers - by Millennium Encounter ID
 
 units <- c("HH 6EJP", "HH 6WJP")
 
@@ -40,7 +38,7 @@ demog <- read_data(dir_raw, "demographics", FALSE) %>%
     filter(age >= 18) %>%
     sample_n(110)
 
-id <- read_data(dir_raw, "identifiers") %>%
+id <- read_data(dir_raw, "identifiers", FALSE) %>%
     as.id()
 
 icd <- read_data(dir_raw, "diagnosis", FALSE) %>%
@@ -103,7 +101,7 @@ data_patients <- demog %>%
         !is.na(diag.code),
         !is.na(fin)
     ) %>%
-    sample_n(100) %>%
+    # sample_n(100) %>%
     select(millennium.id, fin, age, gender, diag.code, desc)
 
 data_meds <- orders %>%
